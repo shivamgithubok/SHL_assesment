@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHL Assessment Recommender</title>
+    <!-- Bootstrap CSS from Replit theme -->
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(11, 11, 11, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .score-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .metadata-item {
+            display: inline-block;
+            margin-right: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .metadata-item i {
+            margin-right: 0.25rem;
+        }
+        .search-container {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .result-count {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body data-bs-theme="dark">
+    <div class="container">
+        <header class="mb-5 text-center">
+            <h1 class="display-4">SHL Assessment Recommender</h1>
+            <p class="lead">Find the most relevant SHL assessments for job roles using AI-powered recommendations</p>
+        </header>
+
+        <section class="search-container">
+            <form id="recommendationForm">
+                <div class="mb-3">
+                    <label for="jobDescription" class="form-label">Enter job description or query:</label>
+                    <textarea class="form-control" id="jobDescription" rows="4" placeholder="Example: Looking for assessments to evaluate software engineering candidates with focus on problem-solving and coding skills" required></textarea>
+                </div>
+                <div class="row align-items-end">
+                    <div class="col-md-8 mb-3">
+                        <div class="form-text mb-2">
+                            The system will analyze your job description using Google's Gemini AI and recommend the most relevant SHL assessments.
+                        </div>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="topN" class="form-label">Number of results:</label>
+                        <select class="form-select" id="topN">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <div id="loadingIndicator" class="text-center my-5 d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Analyzing and finding the best assessments...</p>
+        </div>
+
+        <section id="results" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Recommended Assessments</h2>
+                <div class="result-count" id="resultCount"></div>
+            </div>
+            
+            <div id="recommendationsContainer" class="row"></div>
+            
+            <div class="text-center mt-4">
+                <button id="downloadCsv" class="btn btn-outline-secondary">
+                    <i class="fas fa-download"></i> Download as CSV
+                </button>
+            </div>
+        </section>
+
+        <section class="mt-5">
+            <div class="accordion" id="aboutAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                            About this system
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#aboutAccordion">
+                        <div class="accordion-body">
+                            <p>This system recommends SHL assessments based on job descriptions or natural language queries.</p>
+                            
+                            <h5>How it works:</h5>
+                            <ol>
+                                <li>The system has scraped the SHL product catalog to gather assessment information</li>
+                                <li>Google's Gemini AI is used to generate text embeddings for both assessments and queries</li>
+                                <li>Recommendations are made based on cosine similarity between embeddings</li>
+                            </ol>
+                            
+                            <h5>Features:</h5>
+                            <ul>
+                                <li>Matches assessments based on semantic meaning, not just keywords</li>
+                                <li>Provides relevance scores to help you evaluate matches</li>
+                                <li>Includes detailed metadata about each assessment</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Templates for rendering -->
+    <template id="assessmentCardTemplate">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h3 class="card-title"></h3>
+                    <div class="score-badge badge bg-primary"></div>
+                    <p class="card-text description"></p>
+                    <div class="metadata mb-3">
+                        <div class="metadata-item"><i class="fas fa-tag"></i> <span class="test-type"></span></div>
+                        <div class="metadata-item"><i class="fas fa-clock"></i> <span class="duration"></span></div>
+                        <div class="metadata-item"><i class="fas fa-laptop-house"></i> <span class="remote-testing"></span></div>
+                        <div class="metadata-item"><i class="fas fa-chart-line"></i> <span class="irt-support"></span></div>
+                    </div>
+                    <a href="#" class="btn btn-sm btn-outline-primary view-details" target="_blank">View Details</a>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const API_BASE_URL = "http://localhost:8000";
+            const RECOMMEND_ENDPOINT = `${API_BASE_URL}/recommend`;
+            
+            const form = document.getElementById('recommendationForm');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultsSection = document.getElementById('results');
+            const recommendationsContainer = document.getElementById('recommendationsContainer');
+            const resultCount = document.getElementById('resultCount');
+            const downloadBtn = document.getElementById('downloadCsv');
+            
+            let currentRecommendations = [];
+            
+            // Function to get recommendations from API
+            async function getRecommendations(text, topN) {
+                try {
+                    const response = await fetch(RECOMMEND_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            text: text,
+                            top_n: Number(topN)
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`API responded with status: ${response.status}`);
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error fetching recommendations:', error);
+                    return { recommendations: [] };
+                }
+            }
+            
+            // Function to render recommendations
+            function renderRecommendations(recommendations) {
+                recommendationsContainer.innerHTML = '';
+                
+                if (recommendations.length === 0) {
+                    recommendationsContainer.innerHTML = `
+                        <div class="col-12 text-center">
+                            <div class="alert alert-info">
+                                No recommendations found. Try modifying your query.
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const template = document.getElementById('assessmentCardTemplate');
+                
+                recommendations.forEach((rec, index) => {
+                    const card = document.importNode(template.content, true);
+                    
+                    // Set card content
+                    card.querySelector('.card-title').textContent = `${index + 1}. ${rec.name}`;
+                    
+                    const scorePct = Math.round(rec.similarity_score * 100);
+                    card.querySelector('.score-badge').textContent = `${scorePct}%`;
+                    
+                    // Set color based on score
+                    const scoreBadge = card.querySelector('.score-badge');
+                    if (scorePct >= 80) {
+                        scoreBadge.classList.replace('bg-primary', 'bg-success');
+                    } else if (scorePct >= 60) {
+                        scoreBadge.classList.replace('bg-primary', 'bg-info');
+                    } else if (scorePct >= 40) {
+                        scoreBadge.classList.replace('bg-primary', 'bg-warning');
+                        scoreBadge.classList.add('text-dark');
+                    } else {
+                        scoreBadge.classList.replace('bg-primary', 'bg-danger');
+                    }
+                    
+                    // Set description
+                    const descEl = card.querySelector('.description');
+                    if (rec.description) {
+                        const shortDesc = rec.description.length > 150 ? 
+                                          `${rec.description.substring(0, 150)}...` : 
+                                          rec.description;
+                        descEl.textContent = shortDesc;
+                    } else {
+                        descEl.textContent = 'No description available';
+                    }
+                    
+                    // Set metadata
+                    card.querySelector('.test-type').textContent = rec.test_type || 'Unknown';
+                    card.querySelector('.duration').textContent = rec.duration || 'Unknown';
+                    card.querySelector('.remote-testing').textContent = rec.remote_testing || 'Unknown';
+                    card.querySelector('.irt-support').textContent = rec.irt_support || 'Unknown';
+                    
+                    // Set details link
+                    const detailsLink = card.querySelector('.view-details');
+                    if (rec.url) {
+                        detailsLink.href = rec.url;
+                    } else {
+                        detailsLink.classList.add('disabled');
+                        detailsLink.setAttribute('aria-disabled', 'true');
+                    }
+                    
+                    recommendationsContainer.appendChild(card);
+                });
+            }
+            
+            // Convert recommendations to CSV
+            function convertToCSV(recommendations) {
+                const headers = [
+                    'Name', 'Test Type', 'Duration', 'Remote Testing',
+                    'IRT Support', 'Relevance Score', 'URL', 'Description'
+                ];
+                
+                const rows = recommendations.map(rec => [
+                    `"${rec.name.replace(/"/g, '""')}"`,
+                    `"${(rec.test_type || 'Unknown').replace(/"/g, '""')}"`,
+                    `"${(rec.duration || 'Unknown').replace(/"/g, '""')}"`,
+                    `"${(rec.remote_testing || 'Unknown').replace(/"/g, '""')}"`,
+                    `"${(rec.irt_support || 'Unknown').replace(/"/g, '""')}"`,
+                    `${Math.round(rec.similarity_score * 100)}%`,
+                    `"${(rec.url || '').replace(/"/g, '""')}"`,
+                    `"${(rec.description || '').replace(/"/g, '""')}"`
+                ]);
+                
+                return [headers.join(',')].concat(rows.map(row => row.join(','))).join('\n');
+            }
+            
+            // Handle form submission
+            form.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                
+                const jobDescription = document.getElementById('jobDescription').value.trim();
+                const topN = document.getElementById('topN').value;
+                
+                if (jobDescription.length < 10) {
+                    alert('Please enter a more detailed description (at least 10 characters).');
+                    return;
+                }
+                
+                // Show loading indicator
+                loadingIndicator.classList.remove('d-none');
+                resultsSection.classList.add('d-none');
+                
+                // Get recommendations
+                const data = await getRecommendations(jobDescription, topN);
+                currentRecommendations = data.recommendations || [];
+                
+                // Update result count
+                resultCount.textContent = `Found ${currentRecommendations.length} relevant assessments`;
+                
+                // Render recommendations
+                renderRecommendations(currentRecommendations);
+                
+                // Hide loading indicator and show results
+                loadingIndicator.classList.add('d-none');
+                resultsSection.classList.remove('d-none');
+                
+                // Scroll to results
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            });
+            
+            // Handle CSV download
+            downloadBtn.addEventListener('click', function() {
+                if (currentRecommendations.length === 0) return;
+                
+                const csv = convertToCSV(currentRecommendations);
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'shl_recommendations.csv');
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+    </script>
+</body>
+</html>
